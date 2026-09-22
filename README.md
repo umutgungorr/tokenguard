@@ -110,6 +110,11 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
       - name: Run TokenGuard
         run: |
           python -m tokenguard --format sarif -o results.sarif .
