@@ -10,6 +10,22 @@
 > **Lightweight, zero-dependency Git pre-commit secret scanner with native SARIF & baseline suppression.**  
 > Prevent accidental leaks of API tokens, cloud credentials, private keys, and high-entropy secrets *before* they hit your Git history or pull requests.
 
+```text
+$ tokenguard --staged
+
+🛡️ TokenGuard v0.2.0 — Scanning staged Git changes...
+[!] SEC-001  CRITICAL  AWS Access Key ID in 'config/storage.py:14'
+    Value: AKIA************4TE7  (Entropy: 4.31)
+    Action: Rotate credential immediately and load via environment variable.
+
+[!] SEC-003  CRITICAL  GitHub Personal Access Token in '.env.local:2'
+    Value: ghp_************14TeR  (Entropy: 4.65)
+    Action: Revoke token from GitHub Developer Settings.
+
+[✗] 2 unbaselined secrets detected across 2 files. Commit aborted (exit 1).
+    (To suppress accepted mock/test credentials, run: tokenguard --update-baseline)
+```
+
 ---
 
 ## 🌟 Why TokenGuard?
