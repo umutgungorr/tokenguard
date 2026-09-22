@@ -1,0 +1,13 @@
+name: 'TokenGuard Secret Scanner'
+description: 'Fast, zero-dependency Git secret and API token scanner.'
+author: 'Umut Güngör'
+branding:
+  icon: 'shield'
+  color: 'blue'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Run TokenGuard Scan
+      shell: bash
+      run: python -m tokenguard --dry-run

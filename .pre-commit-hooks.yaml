@@ -1,0 +1,7 @@
+- id: tokenguard
+  name: TokenGuard
+  description: Fast, zero-dependency Git pre-commit secret and API key scanner CLI.
+  entry: tokenguard
+  language: python
+  types: [text]
+  stages: [pre-commit]
