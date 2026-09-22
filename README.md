@@ -16,7 +16,7 @@
 
 Accidentally committing secrets (API keys, private keys, cloud tokens) to Git repositories is one of the most widespread security vulnerabilities. Once pushed, revoking tokens and rewriting Git history is costly, noisy, and error-prone.
 
-**TokenGuard** delivers enterprise-grade secret prevention in a lean, single-binary package:
+**TokenGuard** delivers enterprise-ready secret prevention in a lightweight, zero-runtime-dependency Python package:
 - **Zero External Dependencies**: Built strictly on the Python Standard Library (`re`, `math`, `argparse`, `pathlib`, `hashlib`, `json`, `subprocess`).
 - **Native SARIF v2.1.0**: Generates standard OASIS SARIF reports directly consumable by GitHub Code Scanning Alerts and CI security dashboards.
 - **Fingerprinted Baseline Suppression**: Generate a `.tokenguard.baseline` file to grandfather existing legacy or test mock keys without breaking CI builds.
@@ -88,17 +88,66 @@ Generate a SARIF report for GitHub Code Scanning:
 tokenguard --format sarif -o results.sarif
 ```
 
-In GitHub Actions workflow:
+#### Option A: Hard Gate / Enforcement (Fails PR on Secrets)
+Recommended for security enforcement. Fails the build immediately if unbaselined secrets are detected, while always uploading findings to GitHub Code Scanning:
 
 ```yaml
-- name: Run TokenGuard
-  run: python -m tokenguard --format sarif -o results.sarif
-  continue-on-error: true
+name: TokenGuard Secret Scan
 
-- name: Upload SARIF to GitHub Code Scanning
-  uses: github/codeql-action/upload-sarif@v3
-  with:
-    sarif_file: results.sarif
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  tokenguard-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Run TokenGuard
+        run: |
+          python -m tokenguard --format sarif -o results.sarif .
+
+      - name: Upload SARIF to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: results.sarif
+```
+
+> **Why permissions matter**: `security-events: write` is required by GitHub for actions to submit SARIF alerts to the Security tab. `contents: read` is required for repository checkout.
+
+#### Option B: Advisory / Non-blocking Mode
+Report findings to the Security tab without failing the CI pipeline:
+
+```yaml
+      - name: Run TokenGuard (Advisory)
+        run: |
+          python -m tokenguard --format sarif -o results.sarif .
+        continue-on-error: true
+
+      - name: Upload SARIF to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: results.sarif
+```
+
+#### Option C: Official GitHub Marketplace Action
+You can also run TokenGuard via its official Marketplace Action:
+
+```yaml
+      - name: Run TokenGuard Action
+        uses: umutgungorr/tokenguard@v0.2.0
+        with:
+          format: 'sarif'
+          output: 'results.sarif'
 ```
 
 ---
