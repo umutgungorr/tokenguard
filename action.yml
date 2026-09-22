@@ -1,13 +1,42 @@
 name: 'TokenGuard Secret Scanner'
-description: 'Fast, zero-dependency Git secret and API token scanner.'
+description: 'Fast, zero-dependency Git pre-commit secret & API key scanner with native SARIF output.'
 author: 'Umut Güngör'
 branding:
   icon: 'shield'
   color: 'blue'
 
+inputs:
+  format:
+    description: 'Output format (text, json, sarif)'
+    required: false
+    default: 'text'
+  output:
+    description: 'Optional file path to write report'
+    required: false
+    default: ''
+  baseline:
+    description: 'Path to accepted secrets baseline file'
+    required: false
+    default: ''
+  args:
+    description: 'Additional CLI arguments'
+    required: false
+    default: ''
+
 runs:
   using: 'composite'
   steps:
-    - name: Run TokenGuard Scan
+    - name: Run TokenGuard Secret Scanner
       shell: bash
-      run: python -m tokenguard --dry-run
+      run: |
+        CMD="PYTHONPATH=\"${{ github.action_path }}/src\" python -m tokenguard --format ${{ inputs.format }}"
+        if [ -n "${{ inputs.output }}" ]; then
+          CMD="$CMD -o ${{ inputs.output }}"
+        fi
+        if [ -n "${{ inputs.baseline }}" ]; then
+          CMD="$CMD --baseline ${{ inputs.baseline }}"
+        fi
+        if [ -n "${{ inputs.args }}" ]; then
+          CMD="$CMD ${{ inputs.args }}"
+        fi
+        eval $CMD
