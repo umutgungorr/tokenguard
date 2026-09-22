@@ -163,3 +163,12 @@ def test_cli_update_baseline_workflow(tmp_path: Path) -> None:
     # Step 2: Next scan with baseline yields 0 (suppressed)
     exit_code_2 = main(["--baseline", str(baseline_file), str(dirty_file)])
     assert exit_code_2 == 0
+
+
+def test_detects_stripe_live_secret_key() -> None:
+    scanner = Scanner()
+    dummy_stripe_key = "sk_live_" + "a" * 24
+    findings = scanner.scan_text(f"stripe_key = '{dummy_stripe_key}'")
+
+    assert len(findings) == 1
+    assert findings[0].rule_id == "SEC-009"

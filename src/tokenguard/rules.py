@@ -141,4 +141,13 @@ RULES: list[SecretRule] = [
         description="Identifies hardcoded JWT authorization headers or tokens.",
         remediation="Ensure test JWTs do not contain production signatures or sensitive claims.",
     ),
+    SecretRule(
+        rule_id="SEC-009",
+        name="Stripe Live Secret Key",
+        pattern=re.compile(r"\b(?:sk_live|rk_live)_[A-Za-z0-9]{24}\b"),
+        severity=Severity.CRITICAL,
+        confidence=Confidence.HIGH,
+        description="Identifies Stripe live secret and restricted keys.",
+        remediation="Revoke the Stripe key immediately in the Stripe Dashboard. Generate a new key and store it securely.",
+    ),
 ]
