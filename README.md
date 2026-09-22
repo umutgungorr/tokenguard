@@ -2,40 +2,43 @@
 
 [![CI](https://github.com/umutgungorr/tokenguard/actions/workflows/ci.yml/badge.svg)](https://github.com/umutgungorr/tokenguard/actions/workflows/ci.yml)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
+[![SARIF v2.1.0](https://img.shields.io/badge/SARIF-v2.1.0-blue?logo=github)](https://docs.github.com/en/code-security/code-scanning)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-zero%20external-success.svg)]()
 
-> **Lightweight, zero-dependency Git pre-commit secret and token scanner.**  
-> Prevent accidental leaks of API tokens, cloud credentials, private keys, and high-entropy secrets *before* they hit your Git history.
+> **Lightweight, zero-dependency Git pre-commit secret scanner with native SARIF & baseline suppression.**  
+> Prevent accidental leaks of API tokens, cloud credentials, private keys, and high-entropy secrets *before* they hit your Git history or pull requests.
 
 ---
 
 ## 🌟 Why TokenGuard?
 
-Accidentally committing secrets (API keys, private keys, cloud tokens) to public or private Git repositories is one of the most common security breaches. Once pushed, revoking tokens and rewriting Git history is painful and error-prone.
+Accidentally committing secrets (API keys, private keys, cloud tokens) to Git repositories is one of the most widespread security vulnerabilities. Once pushed, revoking tokens and rewriting Git history is costly, noisy, and error-prone.
 
-**TokenGuard** solves this by acting as both a standalone scanner and a seamless Git pre-commit hook:
-- **Zero External Dependencies**: Built strictly using the Python Standard Library (`re`, `math`, `argparse`, `pathlib`, `subprocess`).
-- **Pre-Commit Hook Integration**: Single command setup (`--install-hook`) blocks risky commits instantly.
-- **Dual-Engine Detection**: Combines deterministic high-precision Regex signatures with Shannon Entropy analysis to catch both known key formats and arbitrary random tokens.
-- **Safe CLI Output**: Secrets are automatically masked (e.g. `ghp_************14TeR`) to avoid leaking values into your terminal logs or CI output.
-- **Staged Git Changes Only**: With `--staged`, only files queued for commit are scanned for maximum speed.
+**TokenGuard** delivers enterprise-grade secret prevention in a lean, single-binary package:
+- **Zero External Dependencies**: Built strictly on the Python Standard Library (`re`, `math`, `argparse`, `pathlib`, `hashlib`, `json`, `subprocess`).
+- **Native SARIF v2.1.0**: Generates standard OASIS SARIF reports directly consumable by GitHub Code Scanning Alerts and CI security dashboards.
+- **Fingerprinted Baseline Suppression**: Generate a `.tokenguard.baseline` file to grandfather existing legacy or test mock keys without breaking CI builds.
+- **Actionable Remediation & Confidence**: Findings include granular confidence ratings (`HIGH`, `MEDIUM`, `LOW`) and exact remediation steps (e.g. key rotation guides).
+- **Deterministic Exit Codes**: Seamlessly integrates into CI/CD pipelines (`0` = clean, `1` = unbaselined secrets, `2` = argument / I/O error).
+- **Safe Output Masking**: Secrets are automatically masked (e.g. `ghp_************14TeR`) to avoid leaking values into CI terminal logs.
 
 ---
 
 ## 🔍 Supported Secret Signatures
 
-| Rule ID | Name | Severity | Example Pattern |
-|---------|------|----------|-----------------|
-| `SEC-001` | AWS Access Key ID | CRITICAL | `AKIA...` (20 chars) |
-| `SEC-002` | GitHub Personal Access Token | CRITICAL | `ghp_...`, `gho_...`, `ghu_...` |
-| `SEC-003` | Slack Bot/User Token | CRITICAL | `xoxb-...`, `xoxp-...` |
-| `SEC-004` | RSA / OpenSSH Private Key | CRITICAL | `-----BEGIN (RSA\|OPENSSH\|EC) PRIVATE KEY-----` |
-| `SEC-005` | OpenAI API Key | HIGH | `sk-proj-...`, `sk-...` |
-| `SEC-006` | Generic API Secret Assignment | HIGH | `api_key = "..."`, `secret_token: "..."` |
-| `SEC-007` | JSON Web Token (JWT) | MEDIUM | `eyJhbGci...eyJ...` |
-| `ENTROPY-001` | High Shannon Entropy Token | HIGH | Arbitrary base64/hex random tokens (Entropy $\ge 4.2$) |
+| Rule ID | Name | Severity | Confidence | Description |
+|---------|------|----------|------------|-------------|
+| `SEC-001` | AWS Access Key ID | CRITICAL | HIGH | AWS IAM & STS access keys (`AKIA...`, `ASIA...`) |
+| `SEC-002` | AWS Secret Access Key | CRITICAL | HIGH | Declared AWS secret access key pairs |
+| `SEC-003` | GitHub Access Token | CRITICAL | HIGH | Classic & fine-grained personal access tokens (`ghp_...`, `github_pat_...`) |
+| `SEC-004` | OpenAI API Key | CRITICAL | HIGH | OpenAI secret keys (`sk-...`, `sk-proj-...`) |
+| `SEC-005` | Slack Bot/User Token | CRITICAL | HIGH | Slack bot, workspace, or user tokens (`xoxb-...`, `xoxp-...`) |
+| `SEC-006` | Private Encryption Key | CRITICAL | HIGH | Raw PEM/OpenSSH private key blocks |
+| `SEC-007` | Generic API Key Assignment | HIGH | MEDIUM | Hardcoded generic API keys & client secrets |
+| `SEC-008` | JSON Web Token (JWT) | MEDIUM | LOW | Raw authorization headers or JWT tokens |
+| `ENTROPY-001` | High Shannon Entropy Token | HIGH | HIGH | Arbitrary base64/hex tokens (Entropy $\ge 4.2$) |
 
 ---
 
@@ -57,32 +60,45 @@ python -m tokenguard --help
 
 ### 2. Install as a Git Pre-Commit Hook
 
-Run this inside any Git repository:
+Install directly into your repository:
 
 ```bash
-python -m tokenguard --install-hook
+tokenguard --install-hook
 ```
 
-This creates executable `.git/hooks/pre-commit` which automatically runs TokenGuard on every `git commit`. If secrets are detected, the commit is blocked with an exit code of `1`.
+This creates an executable `.git/hooks/pre-commit` hook that scans staged changes before every commit.
 
-### 3. Scanning Git Staged Files
+### 3. Baseline Legacy or Mock Secrets
 
-Scan only the files currently staged for commit:
+If your repo contains accepted mock credentials or existing legacy keys, create a baseline:
 
 ```bash
-python -m tokenguard --staged
+# Record all current findings to .tokenguard.baseline
+tokenguard --update-baseline
+
+# Future scans will suppress baselined secrets and only fail on NEW leaks!
+tokenguard
 ```
 
-### 4. Scanning Files or Directories
+### 4. GitHub Actions & Code Scanning (SARIF)
 
-Scan a specific file or recursively scan an entire project directory:
+Generate a SARIF report for GitHub Code Scanning:
 
 ```bash
-# Scan a specific file
-python -m tokenguard config/settings.py
+tokenguard --format sarif -o results.sarif
+```
 
-# Recursively scan a folder
-python -m tokenguard ./src
+In GitHub Actions workflow:
+
+```yaml
+- name: Run TokenGuard
+  run: python -m tokenguard --format sarif -o results.sarif
+  continue-on-error: true
+
+- name: Upload SARIF to GitHub Code Scanning
+  uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: results.sarif
 ```
 
 ---
@@ -90,39 +106,56 @@ python -m tokenguard ./src
 ## ⚙️ CLI Options & Flags
 
 ```text
-usage: tokenguard [-h] [--staged] [--install-hook] [--entropy-threshold FLOAT]
-                  [--dry-run] [paths ...]
-
-TokenGuard - Git Pre-Commit Secret and Token Scanner
+usage: tokenguard [-h] [--version] [--staged] [--install-hook]
+                  [--format {text,json,sarif}] [-o OUTPUT]
+                  [--baseline BASELINE] [--update-baseline]
+                  [--entropy-threshold FLOAT] [--ignore-rule RULE_ID]
+                  [--no-color] [-q] [-v] [--dry-run]
+                  [paths ...]
 
 positional arguments:
-  paths                 Paths to files or directories to scan (default: current directory)
+  paths                 Files or directories to scan (default: current directory or git staged)
 
 options:
-  -h, --help            show this help message and exit
-  --staged              Scan only git staged files (via git diff --cached)
-  --install-hook        Install TokenGuard as a git pre-commit hook in .git/hooks/
+  -h, --help            Show this help message and exit
+  --version             Show program's version number and exit
+  --staged              Scan git staged files before commit
+  --install-hook        Install TokenGuard into local .git/hooks/pre-commit
+  --format {text,json,sarif}
+                        Report format (default: text)
+  -o, --output PATH     Write report output to specified file
+  --baseline PATH       Path to baseline file (default: .tokenguard.baseline if present)
+  --update-baseline     Record current findings to baseline file and exit 0
   --entropy-threshold FLOAT
-                        Shannon entropy threshold for random token detection (default: 4.2, 0 to disable)
-  --dry-run             Scan files without failing with exit code 1 (audit mode)
+                        Shannon entropy threshold for unknown tokens (default: 4.2, 0 to disable)
+  --ignore-rule RULE_ID Ignore specific rule (e.g. SEC-008)
+  --no-color            Disable ANSI color codes
+  -q, --quiet           Suppress scan headers and info messages
+  -v, --verbose         Verbose mode
+  --dry-run             Simulate execution without returning failure exit codes
 ```
+
+### Deterministic Exit Codes
+
+| Exit Code | Meaning |
+|-----------|---------|
+| `0` | Success: Clean (or all findings baselined / dry-run) |
+| `1` | Secrets detected: Unbaselined credentials found |
+| `2` | Error: Invalid arguments or I/O failure |
 
 ---
 
 ## 🧪 Running Tests
 
-TokenGuard has a complete test suite covering all secret rules, Shannon entropy algorithms, git staged scanning, and CLI contracts:
-
 ```bash
-# Run tests with pytest
-pytest tests contract_tests -v
+uv run --with pytest pytest
 ```
 
 ---
 
 ## 🔒 Security & Privacy
 
-TokenGuard runs 100% locally on your machine. It makes zero network requests and does not transmit code, tokens, or telemetry anywhere.
+TokenGuard runs 100% locally. It never transmits code, tokens, or telemetry over the network.
 
 ## 📄 License
 

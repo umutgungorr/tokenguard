@@ -1,10 +1,13 @@
-"""Comprehensive test suite for TokenGuard security detection."""
+"""Comprehensive test suite for TokenGuard security detection, SARIF, and baselines."""
 
+import json
 from pathlib import Path
 
+from tokenguard.baseline import compute_fingerprint, filter_baseline, load_baseline, save_baseline
 from tokenguard.main import main
 from tokenguard.rules import mask_secret
-from tokenguard.scanner import Scanner
+from tokenguard.sarif import generate_sarif, to_sarif_json
+from tokenguard.scanner import Finding, Scanner
 
 
 def test_clean_content_passes() -> None:
@@ -20,6 +23,8 @@ def test_detects_aws_key() -> None:
     assert len(findings) == 1
     assert findings[0].rule_id == "SEC-001"
     assert "AKIA" in findings[0].masked_value
+    assert findings[0].confidence.value == "HIGH"
+    assert "remediation" in findings[0].remediation.lower() or len(findings[0].remediation) > 0
 
 
 def test_detects_github_pat() -> None:
@@ -62,10 +67,45 @@ def test_masking_does_not_reveal_full_secret() -> None:
     assert masked.startswith("ghp_")
 
 
-def test_cli_clean_file_exits_zero(tmp_path: Path) -> None:
-    clean_file = tmp_path / "app.py"
-    clean_file.write_text("print('hello world')", encoding="utf-8")
-    assert main([str(clean_file)]) == 0
+def test_sarif_generation() -> None:
+    scanner = Scanner()
+    dummy_key = "AK" + "IA1234567890ABCDEF"
+    findings = scanner.scan_text(f"aws_key = '{dummy_key}'", source_name="config/aws.py")
+    sarif = generate_sarif(findings)
+
+    assert sarif["version"] == "2.1.0"
+    assert "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master" in sarif["$schema"]
+    run = sarif["runs"][0]
+    assert run["tool"]["driver"]["name"] == "TokenGuard"
+    assert len(run["results"]) == 1
+    result = run["results"][0]
+    assert result["ruleId"] == "SEC-001"
+    assert result["locations"][0]["physicalLocation"]["artifactLocation"]["uri"] == "config/aws.py"
+    assert result["locations"][0]["physicalLocation"]["region"]["startLine"] == 1
+
+
+def test_baseline_save_load_filter(tmp_path: Path) -> None:
+    scanner = Scanner()
+    dummy_key = "AK" + "IA1234567890ABCDEF"
+    findings = scanner.scan_text(f"aws_key = '{dummy_key}'", source_name="sample.py")
+    assert len(findings) == 1
+
+    baseline_file = tmp_path / ".tokenguard.baseline"
+    save_baseline(baseline_file, findings)
+    assert baseline_file.is_file()
+
+    fps = load_baseline(baseline_file)
+    assert len(fps) == 1
+    assert findings[0].fingerprint in fps
+
+    unbaselined, baselined = filter_baseline(findings, fps)
+    assert len(unbaselined) == 0
+    assert len(baselined) == 1
+
+
+def test_cli_clean_fixture_exits_zero() -> None:
+    fixture = Path(__file__).parent / "fixtures" / "clean_project" / "app.py"
+    assert main([str(fixture)]) == 0
 
 
 def test_cli_dirty_file_exits_one(tmp_path: Path) -> None:
@@ -73,3 +113,53 @@ def test_cli_dirty_file_exits_one(tmp_path: Path) -> None:
     dummy_secret = "AK" + "IAIOSFODNN7EXAMPLE"
     dirty_file.write_text(f"secret = '{dummy_secret}'", encoding="utf-8")
     assert main([str(dirty_file)]) == 1
+
+
+def test_cli_nonexistent_path_exits_two() -> None:
+    assert main(["non_existent_file_path_12345.py"]) == 2
+
+
+def test_cli_format_json_and_output(tmp_path: Path, capsys) -> None:
+    dirty_file = tmp_path / "config.py"
+    dummy_secret = "AK" + "IAIOSFODNN7EXAMPLE"
+    dirty_file.write_text(f"secret = '{dummy_secret}'", encoding="utf-8")
+    out_file = tmp_path / "report.json"
+
+    exit_code = main(["--format", "json", "-o", str(out_file), str(dirty_file)])
+    assert exit_code == 1
+    assert out_file.is_file()
+
+    data = json.loads(out_file.read_text(encoding="utf-8"))
+    assert data["findings_count"] == 1
+    assert data["findings"][0]["rule_id"] == "SEC-001"
+
+
+def test_cli_format_sarif(tmp_path: Path) -> None:
+    dirty_file = tmp_path / "config.py"
+    dummy_secret = "AK" + "IAIOSFODNN7EXAMPLE"
+    dirty_file.write_text(f"secret = '{dummy_secret}'", encoding="utf-8")
+    sarif_file = tmp_path / "results.sarif"
+
+    exit_code = main(["--format", "sarif", "-o", str(sarif_file), str(dirty_file)])
+    assert exit_code == 1
+    assert sarif_file.is_file()
+
+    sarif_data = json.loads(sarif_file.read_text(encoding="utf-8"))
+    assert sarif_data["version"] == "2.1.0"
+    assert len(sarif_data["runs"][0]["results"]) == 1
+
+
+def test_cli_update_baseline_workflow(tmp_path: Path) -> None:
+    dirty_file = tmp_path / "config.py"
+    dummy_secret = "AK" + "IAIOSFODNN7EXAMPLE"
+    dirty_file.write_text(f"secret = '{dummy_secret}'", encoding="utf-8")
+    baseline_file = tmp_path / ".tokenguard.baseline"
+
+    # Step 1: Update baseline creates baseline and exits 0
+    exit_code_1 = main(["--baseline", str(baseline_file), "--update-baseline", str(dirty_file)])
+    assert exit_code_1 == 0
+    assert baseline_file.is_file()
+
+    # Step 2: Next scan with baseline yields 0 (suppressed)
+    exit_code_2 = main(["--baseline", str(baseline_file), str(dirty_file)])
+    assert exit_code_2 == 0

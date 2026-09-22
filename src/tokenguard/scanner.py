@@ -8,8 +8,10 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from .baseline import compute_fingerprint
 from .rules import (
     RULES,
+    Confidence,
     Severity,
     calculate_shannon_entropy,
     mask_secret,
@@ -61,8 +63,11 @@ class Finding:
     rule_id: str
     rule_name: str
     severity: Severity
+    confidence: Confidence
+    remediation: str
     masked_value: str
     line_snippet: str
+    fingerprint: str
 
 
 class Scanner:
@@ -89,12 +94,15 @@ class Scanner:
                 continue
 
             # 1. Check Regex Rules
+            matched_rule = False
             for rule in RULES:
                 if rule.rule_id in self.ignored_rules:
                     continue
                 match = rule.pattern.search(line)
                 if match:
                     secret_val = match.group(0)
+                    masked = mask_secret(secret_val)
+                    fp = compute_fingerprint(source_name, rule.rule_id, masked)
                     findings.append(
                         Finding(
                             file_path=source_name,
@@ -102,14 +110,18 @@ class Scanner:
                             rule_id=rule.rule_id,
                             rule_name=rule.name,
                             severity=rule.severity,
-                            masked_value=mask_secret(secret_val),
+                            confidence=rule.confidence,
+                            remediation=rule.remediation,
+                            masked_value=masked,
                             line_snippet=self._sanitize_snippet(line),
+                            fingerprint=fp,
                         )
                     )
+                    matched_rule = True
                     break
 
             # 2. Check High Entropy Tokens in word candidates
-            if not match and self.entropy_threshold > 0:
+            if not matched_rule and self.entropy_threshold > 0:
                 candidates = re.findall(
                     r"['\"]([A-Za-z0-9+/=_-]{16,})['\"]|\b([A-Za-z0-9+/=_-]{20,})\b",
                     line,
@@ -126,6 +138,8 @@ class Scanner:
                     ):
                         ent = calculate_shannon_entropy(cleaned_word)
                         if ent >= self.entropy_threshold:
+                            masked = mask_secret(cleaned_word)
+                            fp = compute_fingerprint(source_name, "ENTROPY-001", masked)
                             findings.append(
                                 Finding(
                                     file_path=source_name,
@@ -133,8 +147,11 @@ class Scanner:
                                     rule_id="ENTROPY-001",
                                     rule_name="High Entropy Secret Token",
                                     severity=Severity.HIGH,
-                                    masked_value=mask_secret(cleaned_word),
+                                    confidence=Confidence.HIGH,
+                                    remediation="Store secret token in an external secrets manager or .env file.",
+                                    masked_value=masked,
                                     line_snippet=self._sanitize_snippet(line),
+                                    fingerprint=fp,
                                 )
                             )
                             break
