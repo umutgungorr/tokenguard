@@ -10,6 +10,10 @@
 > **Lightweight, zero-dependency Git pre-commit secret scanner with native SARIF & baseline suppression.**  
 > Prevent accidental leaks of API tokens, cloud credentials, private keys, and high-entropy secrets *before* they hit your Git history or pull requests.
 
+<p align="center">
+  <img src="assets/demo.png" alt="TokenGuard Demo" width="850">
+</p>
+
 ```text
 $ tokenguard --staged
 
@@ -62,10 +66,10 @@ Accidentally committing secrets (API keys, private keys, cloud tokens) to Git re
 
 ### 1. Installation
 
-Install via pip in your development environment:
+Install via pip from PyPI:
 
 ```bash
-pip install .
+pip install tokenguard-cli
 ```
 
 Or run directly without installation:
