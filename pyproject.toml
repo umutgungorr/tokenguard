@@ -3,7 +3,7 @@ requires = ["hatchling==1.27.0"]
 build-backend = "hatchling.build"
 
 [project]
-name = "tokenguard"
+name = "tokenguard-cli"
 version = "0.2.0"
 description = "Fast, zero-dependency Git pre-commit secret and API key scanner CLI."
 readme = "README.md"
@@ -12,6 +12,7 @@ dependencies = []
 
 [project.scripts]
 tokenguard = "tokenguard.main:main"
+tokenguard-cli = "tokenguard.main:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/tokenguard"]
