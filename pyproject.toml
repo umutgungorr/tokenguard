@@ -58,8 +58,10 @@ tokenguard = "tokenguard.main:main"
 tokenguard-cli = "tokenguard.main:main"
 
 [project.urls]
-Homepage = "https://umutgungorr.com/"
+Homepage = "https://umutgungorr.com/projects/tokenguard"
 Documentation = "https://umutgungorr.com/projects/tokenguard"
+"Incident Cleanup Guide" = "https://umutgungorr.com/blog/git-filter-repo-clean-leaked-secrets"
+"Pre-Commit Prevention Guide" = "https://umutgungorr.com/blog/git-secret-leak-prevention-tokenguard"
 Repository = "https://github.com/umutgungorr/tokenguard"
 Issues = "https://github.com/umutgungorr/tokenguard/issues"
 Changelog = "https://github.com/umutgungorr/tokenguard/blob/main/CHANGELOG.md"
