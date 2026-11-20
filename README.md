@@ -425,9 +425,9 @@ TokenGuard is a core pillar of the zero-dependency **Developer Diagnostics Suite
 
 ## Guides & Architecture
 
-- **Project overview & scanner rules:** [TokenGuard on umutgungorr.com](https://umutgungorr.com/projects/tokenguard)
-- **Incident cleanup guide:** [How to Clean Leaked Secrets from Git History with `git-filter-repo`](https://umutgungorr.com/blog/git-filter-repo-clean-leaked-secrets)
-- **Pre-commit prevention:** [Preventing Secret Leaks Before `git push`](https://umutgungorr.com/blog/git-secret-leak-prevention-tokenguard)
+- **Project overview & scanner rules:** [TokenGuard on umutgungorr.com](https://umutgungorr.com/projects/tokenguard?lang=en)
+- **Incident cleanup guide:** [How to Clean Leaked Secrets from Git History with `git-filter-repo`](https://umutgungorr.com/blog/git-filter-repo-clean-leaked-secrets?lang=en)
+- **Pre-commit prevention:** [Preventing Secret Leaks Before `git push`](https://umutgungorr.com/blog/git-secret-leak-prevention-tokenguard?lang=en)
 
 ---
 
